@@ -8,22 +8,110 @@ date: "2023-03-09"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+```{r Initial Setup and Data Processing}
+#clearing any previous work
+rm(list = ls())
 
-```{r cars}
-summary(cars)
+#accessing the required packages for this analysis
+library(mapview)
+library(sf)
+library(ggplot2)
+library(spatstat)
+library(tidyverse)
+library(isdas)
+library(maptools)
+library(cancensus)
+options(cancensus.api_key = "CensusMapper_8e9231548d2f2fdf9fb14d31d0cd0351", install = TRUE)
+
+#importing the data
+dataSeal <- read.csv("C:/Users/Jeffh/Downloads/Harbour_seal_counts_haulout_locs_BCcoast.csv")
+
+dataCity <- read.csv("C:/Users/Jeffh/Downloads/canadacities.csv")
+dataCity <- drop_na(dataCity)
+
+dataCensus <- get_census(dataset='CA21', regions=list(CMA="59"),
+vectors=c("v_CA21_434","v_CA21_435","v_CA21_440"),
+level='CSD', use_cache = FALSE, geo_format = 'sf', quiet = TRUE)
+
+#subsetting the seal data
+dataSub <- subset(dataSeal, Year == 2019, select = c(Longitude, Latitude, complex_count))
+dataSub <- drop_na(dataSub)
+
+#creating windows for ppp creation
+WSeal <- owin(c(-125.4, -122.9), c(48.30, 50.27))
+
+WCity <- owin(c(48.30, 50.27), c(-125.4, -122.9))
+
+#creating the ppps
+data.ppp <- as.ppp(dataSub, W = WSeal)
+
+city.ppp <- as.ppp(dataCity, W = WCity)
+
+#creating a spatial frame for seal data
+data.sf <- st_as_sf(dataSub, coords = c("Longitude", "Latitude"),  crs = 4326)
+
+#joining the spatial seal data to the census data
+joinedData <- st_join(data.sf, dataCensus) 
+joinedData <- drop_na(joinedData)
 ```
 
-## Including Plots
 
-You can also embed plots, for example:
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r Maps for Initial Data}
+#seal data maps
+sealMap <- mapview(dataSub, xcol = "Longitude", ycol = "Latitude", crs = 4269, grid = FALSE)
+sealMap
+
+sealMap2 <- ggplot(data = dataSub, aes (x = Longitude, y = Latitude, color = complex_count)) + geom_point(alpha = 0.5) + scale_color_distiller(palette = "OrRd",direction = 1) + coord_equal() 
+sealMap2
+
+#city data map
+cityMap <- mapview(dataCity, xcol = "lng", ycol = "lat", crs = 4269, grid = FALSE)
+cityMap
+
+#census data map
+censusMap <- ggplot(data = dataCensus, aes(fill = Population)) + geom_sf()
+censusMap
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+```{r Kernel Density}
+kernelDensitySeal <- density((data.ppp), sigma = 0.1)
+plot(kernelDensitySeal)
+
+kernelDensityCity <- density((city.ppp), sigma = 0.1)
+plot(kernelDensityCity)
+```
+
+
+
+```{r Steinnen Diagrams}
+steinnenSeal <- nndist(data.ppp)
+data.ppp %mark% (steinnenSeal) %>%
+plot(markscale = 1, main = "Stienen diagram")
+
+steinnenCity <- nndist(city.ppp)
+city.ppp %mark% (steinnenCity) %>%
+plot(markscale = 1, main = "Stienen diagram")
+```
+
+
+
+```{r K-hat Function}
+kSeal <- Kest(data.ppp, correction = "none")
+plot(kSeal)
+
+kCity <- Kest(city.ppp, correction = "none")
+plot(kCity)
+```
+
+
+
+```{r Linear Regression}
+lrSealandCity <- lm(formula = Population ~ complex_count, data = joinedData)
+summary(lrSealandCity) 
+```
+
