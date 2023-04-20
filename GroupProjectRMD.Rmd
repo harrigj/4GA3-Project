@@ -88,24 +88,22 @@ plot(kernelDensityCity)
 
 
 
-```{r Steinnen Diagrams}
-steinnenSeal <- nndist(data.ppp)
-data.ppp %mark% (steinnenSeal) %>%
-plot(markscale = 1, main = "Stienen diagram")
+```{r Quadrat Counts}
+qCountSeal <- quadratcount(data.ppp, nx = 5, ny = 5)
+plot(qCountSeal)
 
-steinnenCity <- nndist(city.ppp)
-city.ppp %mark% (steinnenCity) %>%
-plot(markscale = 1, main = "Stienen diagram")
+qCountCity <- quadratcount(city.ppp, nx = 5, ny = 5)
+plot(qCountCity)
 ```
 
 
 
-```{r K-hat Function}
-kSeal <- Kest(data.ppp, correction = "none")
-plot(kSeal)
+```{r F-Test}
+FSeal <- Fest(data.ppp, correction = "none")
+plot(FSeal)
 
-kCity <- Kest(city.ppp, correction = "none")
-plot(kCity)
+FCity <- Fest(city.ppp, correction = "none")
+plot(FCity)
 ```
 
 
