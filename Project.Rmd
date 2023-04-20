@@ -1,0 +1,126 @@
+```{r}
+#Start
+rm(list = ls())
+```
+
+```{r}
+library(maptools)
+library(sf)
+library(spatstat)
+library(tidyverse)
+library(ggplot2)
+library(gstat)
+library(spdep)
+library(isdas)
+library(cartogram)
+library(plotly)
+```
+
+```{r}
+#Data
+Seal <- read.csv("C:\\Users\\camha\\Downloads\\Harbour_seal_counts_haulout_locs_BCcoast.csv")
+Cities <- read.csv("C:\\Users\\camha\\Downloads\\BCcities.csv")
+```
+
+```{r}
+BC <- subset(Cities, province_id =='BC',select=c('lng','lat','density'))
+Seal19 <- subset(Seal, Year =='2019', select=c('Longitude', 'Latitude', 'complex_count'))
+```
+
+```{r}
+Seal19.sf <- st_as_sf(Seal, coords = c("Longitude", "Latitude"),  crs = 4326)
+BC.sf <- st_as_sf(BC, coords = c("lng", "lat"),  crs = 4326)
+```
+
+```{r}
+#Initial Visualization
+SealMap <- ggplot(data = Seal19, 
+              aes (x = Longitude, y = Latitude, color = complex_count, size = complex_count)) +
+  geom_point(alpha = 0.5) + 
+  scale_color_distiller(palette = "OrRd",
+                        direction = 1) +
+  xlim (-127.2, -122.9) +
+  ylim (48.30, 51.47)
+coord_equal() 
+SealMap
+
+BCMap <- ggplot(data = BC, 
+              aes (x = lng, y = lat, color = density, size = density)) +
+  geom_point(alpha = 0.5) + 
+  scale_color_distiller(palette = "OrRd",
+                        direction = 1) +
+  xlim (-127.2, -122.9) +
+  ylim (48.30, 51.47)
+coord_equal() 
+BCMap
+```
+
+```{r}
+#Quadrats
+W <- owin(c(-127.2, -122.9), c(48.30, 51.47))
+```
+
+```{r}
+BC.ppp <-  as.ppp(BC, W = W)
+```
+```{r}
+plot(BC.ppp)
+```
+
+```{r}
+q_count <- quadratcount(BC.ppp, nx = 3, ny = 3)
+table(q_count)
+plot(q_count)
+```
+```{r}
+q_test <- quadrat.test(BC.ppp, nx = 3, ny = 3)
+q_test
+```
+```{r}
+plot(q_test)
+```
+```{r}
+kernel_density <- density(BC.ppp, 
+                          sigma = 0.1)
+plot(kernel_density)
+```
+```{r}
+g_pattern1 <- Gest(BC.ppp, correction = "none")
+plot(g_pattern1)
+```
+```{r}
+distmap <- distmap(BC.ppp)
+plot(distmap)
+```
+```{r}
+f_pattern1 <- Fest(BC.ppp, correction = "none")
+plot(f_pattern1)
+```
+```{r}
+k_pattern3 <- Kest(BC.ppp, correction = "none")
+plot(k_pattern3)
+```
+
+```{r}
+env_pp1 <- envelope(BC.ppp,
+                    Gest, 
+                    nsim = 99, 
+                    funargs = list(correction = "none"))
+plot(env_pp1)
+
+env_pp2 <- envelope(BC.ppp,
+                    Fest, 
+                    nsim = 99, 
+                    funargs = list(correction = "none"))
+plot(env_pp2)
+
+env_pp3 <- envelope(BC.ppp,
+                    Kest, 
+                    nsim = 99, 
+                    funargs = list(correction = "none"))
+plot(env_pp3)
+```
+
+
+
+
