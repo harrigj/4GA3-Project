@@ -1,0 +1,209 @@
+---
+title: "The Effects of Human Population Density on Harbour Seal Populations Along the Coast of British Columbia"
+author:
+- Cameron Hamer, 400247425
+- Gabby Studebaker, 400235615
+- Jeff Harrigan, 400263304
+- Sam Nichols, 400251798
+- Jacob Blair, 400278065
+subject: "ENVSOCTY 4GA3 - Final Project"
+abstract: 
+  "This report analyzes harbour seal populations and their relationship to human populations in British Columbia."
+keywords:
+  "Keywords: harbour seals, population, density, British Columbia, spatial analysis"
+output: pdf_document
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Introduction
+  Do harbour seals in British Columbia flock to areas inhabited by humans? Or do they prefer quieter areas where they may be less likely to be disturbed. This report is analyzing the relationship between areas that seals live and areas that humans live; if the seals prefer living near humans, they might provide some form of food or safety, whereas if they live further away from the population-dense areas humans may be a threat to them. The null hypothesis is that the seals have no preference towards living in areas that are inhabited by a large number of humans or living in areas devoid of humans. This report aims to answer this question using a combination of three datasets from the study area. Point pattern analysis is performed upon each point dataset individually, then a regression analysis is performed on the seal data and the census data to determine whether or not there is correlation.  
+  
+#Background
+  Harbour seals (Phoca vitulina) are relatively small compared to other seal species and are widely distributed throughout the Pacific Northwest, although they also have populations in the North Atlantic along both the North American and European coasts. They can weigh between 180-285 pounds, and generally live between 25-30 years (NOAA, 2022). They are classified as a species of least concern by the international Union for the Conservation of Nature (IUCN), largely because harbour seal populations were not the target of commercial fishing during the late 1900’s as was the case with other seal and sea lion species. Despite this, they are protected under the Marine Mammal Protection Act (MMPA) (NOAA, 2022). Today, the biggest threats to harbour seal populations are entanglement with fishing nets, habitat destruction and pollution, and vessel collisions (NOAA, 2022). Harbour seals forage on fish, cephalopods and crustaceans and reside in large groups called rookeries (Braje & Rick, 2011). They are non-migratory and rarely leave their rookeries and haul-out locations, staying within 31 miles of their natal area (NOAA, 2022, Braje & Rick, 2011). Their breeding season lasts from February to October, during which time females give birth to a single pup on land (Government of Canada, 2019). Harbour seals have been known to spend lots of time on land, sometimes spending entire days out of the water, although they are rarely found far from it (Braje & Rick, 2011). These seals are easily frightened by humans (Braje & Rick, 2011), meaning that while they may prefer living in close proximity to cities and towns, they dislike direct interactions with humans. 
+  
+#Initial Set Up
+```{r}
+#Remove previous work
+rm(list = ls())
+```
+
+```{r}
+#Load Packages
+library(maptools)
+library(sf)
+library(spatstat)
+library(tidyverse)
+library(ggplot2)
+library(gstat)
+library(spdep)
+library(isdas)
+library(stargazer)
+library(cartogram)
+library(plotly)
+library(cancensus)
+options(cancensus.api_key = "CensusMapper_8e9231548d2f2fdf9fb14d31d0cd0351", install = TRUE)
+```
+
+```{r}
+#Import and Subset Data
+dataSeals <- read.csv("C:\\Users\\camha\\Downloads\\Harbour_seal_counts_haulout_locs_BCcoast.csv")
+dataSeals <- drop_na(dataSeals)
+dataCities <- read.csv("C:\\Users\\camha\\Downloads\\BCcities.csv")
+dataCities <- drop_na(dataCities)
+
+dataCensus <- get_census(dataset='CA21', regions=list(CMA="59"),
+vectors=c("v_CA21_434","v_CA21_435","v_CA21_440"),
+level='CSD', use_cache = FALSE, geo_format = 'sf', quiet = TRUE)
+
+Cities <- subset(dataCities, province_id =='BC',select=c('lng','lat','density'))
+Seals <- subset(dataSeals, Year =='2019', select=c('Longitude', 'Latitude', 'complex_count'))
+```
+
+```{r}
+#Create Windows for PPP
+WSeals <- owin(c(-125.4, -122.9), c(48.30, 50.27))
+WCities <- owin(c(-125.4, -122.9), c(48.30, 50.27))
+```
+
+```{r}
+#Create PPPs
+Seals.ppp <- as.ppp(Seals, W = WSeals)
+Cities.ppp <- as.ppp(Cities, W = WCities)
+```
+
+```{r}
+#Create Spatial Frames
+Seals.sf <- st_as_sf(Seals, coords = c("Longitude", "Latitude"),  crs = 4326)
+Cities.sf <- st_as_sf(Cities, coords = c("lng", "lat"),  crs = 4326)
+```
+
+```{r}
+#Join Spatial Data
+SealCensus <- st_join(Seals.sf, dataCensus)
+SealCensus <- drop_na(SealCensus)
+```
+
+#Study Area
+  The study area focuses on the Pacific coast of British Columbia and around Vancouver Island. The seal data shows seal locations around the coast and Vancouver Island, as seen in Figure 1. The city data as well as the census data was focused on the major British Colombian cities, with special focus on cities along the coast and on Vancouver Island (Figure 2). This study area was chosen as it all lies within the habitat range of harbour seals.
+
+```{r}
+SealsMap <- ggplot(data = Seals, 
+              aes (x = Longitude, y = Latitude, color = complex_count, size = complex_count)) +
+  geom_point(alpha = 0.5) + 
+  ggtitle("Figure 1 - Seal Complex Count Mapped") + 
+  scale_color_distiller(palette = "OrRd",
+                        direction = 1) +
+  xlim (-127.2, -122.9) +
+  ylim (48.30, 51.47)
+coord_equal() 
+SealsMap
+```
+
+```{r}
+CitiesMap <- ggplot(data = Cities, 
+              aes (x = lng, y = lat, color = density, size = density)) +
+  geom_point(alpha = 0.5) + 
+  ggtitle("Figure 2 - Cities Density Mapped") + 
+  scale_color_distiller(palette = "OrRd",
+                        direction = 1) +
+  xlim (-127.2, -122.9) +
+  ylim (48.30, 51.47)
+coord_equal() 
+CitiesMap
+```
+
+#Data
+  The seal data, compiled by Fisheries and Oceans Canada, was found on Open Canada Data. This data set ranges from varying years between 1973 to 2019 and includes information relating to the area counts were conducted in, such as name and subarea as well as latitude and longitude of the area, and complex count of seals in the area (citation).  
+
+  The city data, is from a Canada Cities Database provided by SimpleMaps. It was last updated in August of 2020 and includes almost 8,000 Canadian cities. It provides the location, population, density and other identification information. (citations)
+
+The census subdivision data is retrieved from the Cancensus package for R. It provides data on the 2017 populations in the census tracts of British Columbia, as well as the spatial locations of the census tracts (citation)
+
+#Methods
+  This study uses RStudio to conduct analysis using a combination of data sets from the study area. Point pattern analysis is conducted on each data set using the same tests to observe any clustering within the datasets, which include kernel density, f-function and quadrat count tests. Based on observations and the results, the study progresses to complete a regression analysis of the seals and census population data to determine if there is a correlation between them. In the regression analysis, the census populations are in the independent variable and the seals complex counts are used as dependent variables to determine a relationship. 
+  
+#Results
+The first step to analyzing the relationship between seal counts and human populations was to look at the point pattern analysis of the two independently. Figure 3 shows the kernel density of the seal’s complex counts using a sigma equal to 0.1. Figure 4 shows the same test for the city data also using a sigma equal to 0.1. 
+  
+```{r}
+Figure3_Kernal_Density <- density(Seals.ppp, 
+                          sigma = 0.1)
+plot(Figure3_Kernal_Density)
+```
+
+```{r}
+Figure4_Kernal_Density <- density(Cities.ppp, 
+                          sigma = 0.1)
+plot(Figure4_Kernal_Density)
+```
+
+Next quadrat counts were completed on both datasets to see more clear evidence of clustering in the same regions between datasets. Figure 5 shows the complex seal counts using a five-by-five binwidth. Figure 6 shows the quadrat count of the city dataset using a five-by-five binwidth.
+
+```{r}
+Figure5_qCountSeal <- quadratcount(Seals.ppp, nx = 5, ny = 5)
+plot(Figure5_qCountSeal)
+```
+
+```{r}
+Figure6_qCountCity <- quadratcount(Cities.ppp, nx = 5, ny = 5)
+plot(Figure6_qCountCity)
+```
+
+The final point pattern analysis to complete was an F-function test, also known as the empty space function. Figure 7 shows the results of the F-function test for the seal dataset. It shows high amounts of clustering. Figure 8 shows a similar pattern to the previous point pattern analysis. The results depict the F-function for the city dataset also indicate high amounts of clustering within the dataset.
+
+```{r}
+Figure7_FSeal <- Fest(Seals.ppp, correction = "none")
+plot(Figure7_FSeal)
+```
+
+```{r}
+Figure8_FCity <- Fest(Cities.ppp, correction = "none")
+plot(Figure8_FCity)
+```
+
+The results of the three-point pattern tests showed evidence of clustering within the two datasets as well as clustering in similar areas. This led us to further analyze the relationship between the two datasets with a simple linear regression. Table 1 and Figure 9 show the results of the linear regression. The R-squared value for the regression is 0.0157, and the p-value is 0.7675.  
+
+```{r}
+lrSealandcity <- lm(formula = Population ~ complex_count, data = SealCensus)
+summary(lrSealandcity) 
+```
+Below, Figure 9 shows the linear regression plotted. 
+```{r}
+stargazer(lrSealandcity,
+          header = FALSE,
+          title = "Figure 9 - Complex Seal Counts Regressed on Human Populations")
+```
+
+```{r}
+ggplot(data = SealCensus, aes(x = complex_count, y = Population)) +
+  geom_point() +
+  geom_smooth(formula = y ~ x, method = "lm") + 
+  xlab("Complex Count") + 
+  ylab("Population")
+```
+#Analysis
+  Point pattern analysis of the seal data revealed definite clustering by the seals, as supported by the quadrat count, kernel density estimate, and F test. Beginning with the quadrat count, the seals form a clear pattern of clustering moving down the coast from the northwest to the southeast, leaving the southwest and northeast corners of the study area unpopulated. This was to be expected, because based on what we know about harbour seals, they are non-migratory and rarely travel away from their natal area. The seals also prefer to live in coastal areas and spend plenty of time on land. It is noteworthy that the source of inaccuracy which comes with the arbitrary drawing of quadrat squares would have little effect on this test because the seals would remain in the same pattern, and the empty southwest and northeast corners of the quadrat count would remain empty, provided a 5 by 5 grid was still being used. Our use of the kernel density estimate supports this and shows the same trend of seal population distribution as the quadrat count. The results of the F test further confirm the clustering that is seen in the first two tests, as the poisson process is much greater than the empirical process: for the poisson process, 40% of the points are approximately 0.035 degrees away from their nearest event, while 40% of the points are are greater than 0.1 degrees away from their nearest event for the empirical process. This means the observed seal locations are much closer together than would be expected if the seal distribution was random. The results of these 3 tests combined with our knowledge of how harbour seals live in rookeries confirm what we predicted: the seal population distribution is heavily clustered and is a stochastic process. The results of the linear regression of the seal data with the city data will determine whether the clustering locations of the seals are impacted by the presence of human settlements. 
+
+  After conducting point pattern analysis on the city's data set, the tests revealed similar results which were that there is clustering on the coast of British Columbia. The first test conducted was the kernel density which can be seen in Figure 4. The kernel density test displays a distinct pattern which shows that there is a high amount of clustering in one city and some in others but nowhere else. This tells us that most people live in certain areas in the region, which could be due to where people work or proximity to other resources. The next test conducted was the quadrat count, this test supports the results and shows the same as the kernel density. Although the quadrat test is a bit inaccurate for this because the pattern would stay the same as the kernel density and nothing would change if you created a grid showing how many points are in each. The F test confirms the results from the other tests conducted as seen in Figure 8, the empirical function is less than the theoretical function which suggests that there is a clustered pattern. Looking at all three tests and with knowledge of British Columbia, these results make sense because most people that live on the west coast live in big cities near the coast which could have an impact on where seals are located.  
+
+  To examine the relationship more we conducted a simple linear regression of the complex seal counts and the human populations. Figure 9 shows the results of the simple linear regression model. This model analyzed the relationship between the city’s populations and the complex counts of the seals. The results show that there is no relationship between the two. The R-squared is 0.0157 and the p-value is 0.7675. This indicates to us that there is no relationship and no significance to the previously discussed observed point patterns. Given these results we can accept the null hypothesis that seals show no preference to living near highly populated areas.  
+  
+#Conclusion
+  Overall, it was found that harbour seal populations show no preference for living in areas populated by humans, as indicated by the results of the simple linear regression analysis. This is likely because the biggest threats to harbour seal populations are associated with the presence of humans: entanglements in fish nets, collisions with boats, pollution, and habitat destruction. As a result, the seal populations do not correlate with the presence of cities and towns. However, the distribution of the seal population was heavily clustered and stochastic as expected, which makes sense given the natural formation of rookeries by the seals. Future studies in the area could analyze the relationship between the seal population distribution and other factors such as population distributions of cod and crustaceans, as well as sea temperature to get a better sense of what factors influence the spatial distribution of harbour seal populations of the southwestern coast of British Columbia.   
+  
+#References
+Bergmann, J. V. (2022) Cancensus and CensusMapper. Retrieved from https://cran.r-project.org/web/packages/cancensus/vignettes/cancensus.html 
+
+Braje, T. J., & Rick, T. C. (2011). PEOPLE, PINNIPEDS AND SEA OTTERS OF THE NORTHEAST PACIFIC. In Human impacts on seals, sea lions, and sea otters: Integrating Archaeology  and Ecology in the Northeast Pacific (pp. 9–11). chapter, University of California Press. 
+
+Fisheries, N. O. A. A. (2022, April 19). Harbor seal. NOAA Fisheries. Retrieved from https://www.fisheries.noaa.gov/species/harbor-seal 
+
+Government of Canada, F. and O. C. (2019, August 13). Harbour Seal. Government of Canada, Fisheries and Oceans Canada, Communications Branch. Retrieved from                 https://www.dfo-mpo.gc.ca/species-especes/profiles-profils/harbour-seal-phoque-commun-eng.html#distribution 
+
+Majewski, S. (2022, January 31). Harbour seal (phoca vitulina) counts and haulout locations along BC Coast. Open Government Portal. Retrieved from     https://open.canada.ca/data/en/dataset/be5a4ba8-79dd-4787-bf8a-0d460d25954c 
+
+SimpleMaps. (2020). Canada Cities Database. Retrieved from https://simplemaps.com/data/canada-cities  
